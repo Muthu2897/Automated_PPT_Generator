@@ -22,16 +22,10 @@ Transform any text into a professionally styled PowerPoint presentation that mat
 - Optional: Google Search API credentials for enhanced functionality
 
 ##  Quick Start
-
-### Method 1: GitHub Pages (Recommended)
+GitHub Pages (Recommended)
 1. Visit the [Try it here](https://automatedpptgenerator-production.up.railway.app/)
 2. Select your LLM provider and enter API key
 3. Upload your PowerPoint template
 4. Paste your text content
 5. Click "Generate Presentation"
 
-### Method 2: Local Development
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/text-to-powerpoint-generator.git
-   cd text-to-powerpoint-generator
