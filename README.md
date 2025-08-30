@@ -12,7 +12,7 @@ Transform any text into a professionally styled PowerPoint presentation that mat
 
 ## Demo
 
-**Live Demo**: [Try it here](https://site-production-6e98.up.railway.app/index.html)
+**Live Demo**: [Try it here](https://automatedpptgenerator-production.up.railway.app/)
 
 ##  Requirements
 
@@ -24,7 +24,7 @@ Transform any text into a professionally styled PowerPoint presentation that mat
 ##  Quick Start
 
 ### Method 1: GitHub Pages (Recommended)
-1. Visit the [Try it here](https://site-production-6e98.up.railway.app/index.html)
+1. Visit the [Try it here](https://automatedpptgenerator-production.up.railway.app/)
 2. Select your LLM provider and enter API key
 3. Upload your PowerPoint template
 4. Paste your text content
