@@ -1,1 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SlideSmith — Text to Styled PowerPoint</title>
+
+  <!-- External libs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xml2js/0.6.2/xml2js.min.js"></script>
+
+  <style>
+    :root{
+      --bg-start: #0fb9b1;
+      --bg-end: #2a5d9f;
+      --card-bg: rgba(255,255,255,0.98);
+      --muted: #55606a;
+      --accent: #0b83ff;
+      --success: #16a34a;
+      --danger: #ef4444;
+      --radius: 14px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(135deg,var(--bg-start),var(--bg-end));
+      color:#0f172a;
+      min-height:100vh;
+      display:flex;
+      align-items:flex-start;
+      justify-content:center;
+      padding:36px;
+    }
+    .wrap{
+      width:100%;
+      max-width:1100px;
+    }
+    header{
+      text-align:center;
+      color:white;
+      margin-bottom:18px;
+    }
+    header h1{font-size:28px;margin-bottom:6px}
+    header p{opacity:0.95;margin-top:0;font-size:14px}
+    .card{
+      background:var(--card-bg);
+      border-radius:var(--radius);
+      padding:28px;
+      box-shadow:0 10px 30px rgba(2,6,23,0.18);
+    }
+    .grid{
+      display:grid;
+      grid-template-columns:1fr 360px;
+      gap:20px;
+    }
+    .form-area{min-height:520px}
+    label{display:block;font-weight:600;margin-bottom:8px;color:var(--muted)}
+    textarea, input[type="text"], select{
+      width:100%;
+      padding:12px 14px;
+      border:1px solid #e6eef6;
+      border-radius:10px;
+      font-size:14px;
+      color:#0b1220;
+      background:transparent;
+      resize:vertical;
+    }
+    textarea{min-height:220px}
+    .file-drop{
+      border:2px dashed #e6eef6;
+      padding:14px;
+      border-radius:10px;
+      text-align:center;
+      cursor:pointer;
+      color:var(--muted);
+    }
+    .btn{
+      display:inline-block;
+      background:linear-gradient(90deg,var(--accent),#6c5ce7);
+      color:white;
+      padding:12px 16px;
+      border-radius:999px;
+      border:none;
+      cursor:pointer;
+      font-weight:700;
+      width:100%;
+      margin-top:14px;
+    }
+    .meta{font-size:13px;color:var(--muted);margin-top:6px}
+    .info, .error, .ok {
+      border-radius:10px;padding:10px;margin-top:12px;font-weight:600;
+    }
+    .error{background:#ffeaea;color:var(--danger)}
+    .ok{background:#e6ffef;color:var(--success)}
+    .steps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+    .chip{background:#f1f5f9;padding:6px 10px;border-radius:999px;font-weight:600;color:var(--muted);font-size:13px}
+    .right-panel{background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);padding:16px;border-radius:10px}
+    .small{font-size:13px;color:var(--muted)}
+    @media (max-width:980px){
+      .grid{grid-template-columns:1fr; }
+      .right-panel{order:2}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>SlideSmith</h1>
+      <p>Convert long text or markdown into a PowerPoint styled from your uploaded template.</p>
+    </header>
+
+    <div class="card">
+      <div class="grid">
+        <section class="form-area">
+          <div class="steps" aria-hidden="true">
+            <div class="chip">Paste text</div>
+            <div class="chip">Choose LLM</div>
+            <div class="chip">Upload .pptx/.potx</div>
+            <div class="chip">Create deck</div>
+          </div>
+
+          <form id="ssForm" autocomplete="off">
+            <label for="srcText">Source content</label>
+            <textarea id="srcText" placeholder="# Title\n## Section\n- point A"></textarea>
+            <div class="meta">You can paste Markdown or long-form prose. Use the guidance field to bias the output (e.g., "investor pitch").</div>
+
+            <div style="margin-top:14px">
+              <label for="guidance">Guidance (optional)</label>
+              <input id="guidance" type="text" placeholder="e.g., convert into a 10-slide summary or investor deck">
+            </div>
+
+            <div style="margin-top:14px">
+              <label for="provider">LLM endpoint</label>
+              <select id="provider">
+                <option value="">-- choose --</option>
+                <option value="openai">OpenAI (Chat API)</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="custom">Custom REST</option>
+              </select>
+            </div>
+
+            <div style="margin-top:10px;display:flex;gap:8px">
+              <div style="flex:1">
+                <label for="apiKey">API key</label>
+                <input id="apiKey" type="text" placeholder="Your API key — not saved">
+              </div>
+              <div style="width:110px">
+                <label>&nbsp;</label>
+                <button class="btn" id="createBtn" type="button">Create Deck</button>
+              </div>
+            </div>
+
+            <div style="margin-top:12px">
+              <label>Template file</label>
+              <div class="file-drop" id="dropZone">Drop or click to select .pptx / .potx</div>
+              <input id="pptFile" type="file" accept=".pptx,.potx" style="display:none">
+              <div id="fileMeta" class="meta" style="display:none"></div>
+            </div>
+
+            <div id="statusArea"></div>
+          </form>
+        </section>
+
+        <aside class="right-panel">
+          <div class="small"><strong>Quick samples</strong></div>
+          <div style="margin-top:10px">
+            <button class="btn" id="loadPitch" style="background:linear-gradient(90deg,#06b6d4,#3b82f6);padding:8px 12px;font-size:13px">Investor Pitch</button>
+            <button class="btn" id="loadProduct" style="margin-top:8px;background:linear-gradient(90deg,#06b6d4,#6366f1);padding:8px 12px;font-size:13px">Product Brief</button>
+          </div>
+
+          <div style="margin-top:16px">
+            <div class="small"><strong>How it works</strong></div>
+            <p class="small" style="margin-top:6px">1) The page reads the .pptx zip and extracts theme assets. 2) A slide plan is generated (local heuristic or via your LLM). 3) New slides are compiled into a downloadable PPTX that inherits the template visuals.</p>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="small"><strong>Privacy</strong></div>
+            <p class="small" style="margin-top:6px">All processing happens in your browser. API keys are used directly and not transmitted to any server by this demo.</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // Encapsulated module pattern to avoid global clobbering
+  class SlideBuilderApp {
+    constructor() {
+      this.templateZip = null;
+      this.templateFiles = null;
+      this.mediaMap = {};
+      this.initUI();
+    }
+
+    initUI() {
+      this.srcText = document.getElementById('srcText');
+      this.guidance = document.getElementById('guidance');
+      this.provider = document.getElementById('provider');
+      this.apiKey = document.getElementById('apiKey');
+      this.createBtn = document.getElementById('createBtn');
+      this.dropZone = document.getElementById('dropZone');
+      this.pptFileInput = document.getElementById('pptFile');
+      this.fileMeta = document.getElementById('fileMeta');
+      this.statusArea = document.getElementById('statusArea');
+      this.loadPitch = document.getElementById('loadPitch');
+      this.loadProduct = document.getElementById('loadProduct');
+
+      this.createBtn.addEventListener('click', ()=>this.onCreateClick());
+      this.dropZone.addEventListener('click', ()=>this.pptFileInput.click());
+      this.pptFileInput.addEventListener('change',(e)=>this.onFileChosen(e));
+      ['dragenter','dragover'].forEach(ev=>this.dropZone.addEventListener(ev,(e)=>{e.preventDefault();this.dropZone.style.borderColor='#0b83ff'}));
+      ['dragleave','drop'].forEach(ev=>this.dropZone.addEventListener(ev,(e)=>{e.preventDefault();this.dropZone.style.borderColor='#e6eef6'}));
+      this.dropZone.addEventListener('drop',(e)=>this.onDrop(e));
+
+      this.loadPitch.addEventListener('click', ()=>this.loadSample('pitch'));
+      this.loadProduct.addEventListener('click', ()=>this.loadSample('product'));
+    }
+
+    async onDrop(e){
+      e.preventDefault();
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if(file) this.pptFileInput.files = e.dataTransfer.files;
+      this.onFileChosen({target:{files:this.pptFileInput.files}});
+    }
+
+    async onFileChosen(e){
+      const f = e.target.files && e.target.files[0];
+      if(!f) return;
+      this.fileMeta.style.display = 'block';
+      this.fileMeta.textContent = `Loaded: ${f.name} — ${(f.size/1024/1024).toFixed(2)} MB`;
+
+      try {
+        await this.readTemplateZip(f);
+        this.fileMeta.innerHTML += ' <span style="color:green;font-weight:700"> (template parsed)</span>';
+      } catch(err){
+        this.fileMeta.innerHTML = `Error parsing template: ${err.message}`;
+        this.templateZip = null;
+      }
+    }
+
+    async readTemplateZip(file){
+      const zip = new JSZip();
+      const loaded = await zip.loadAsync(file);
+      this.templateZip = loaded;
+      this.templateFiles = Object.keys(loaded.files);
+      // extract media (images) for reuse
+      const mediaFiles = this.templateFiles.filter(p=>p.startsWith('ppt/media/') && /\.(png|jpg|jpeg|gif|bmp|svg)$/i.test(p));
+      for(const m of mediaFiles){
+        const b64 = await loaded.files[m].async('base64');
+        const ext = m.split('.').pop().toLowerCase();
+        const mime = this.getMime(ext);
+        this.mediaMap[m] = `data:${mime};base64,${b64}`;
+      }
+    }
+
+    getMime(ext){
+      const map = {png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',bmp:'image/bmp',svg:'image/svg+xml'};
+      return map[ext]||'application/octet-stream';
+    }
+
+    validateInputs(){
+      if(!this.srcText.value.trim()){
+        this.showError('Please paste some content to convert.');
+        return false;
+      }
+      if(!this.pptFileInput.files.length || !this.templateZip){
+        this.showError('Please upload and load a PowerPoint template file.');
+        return false;
+      }
+      if(!this.provider.value){
+        this.showError('Choose an LLM endpoint or set provider to blank for local heuristic.');
+        return false;
+      }
+      return true;
+    }
+
+    showStatus(msg,type){
+      this.statusArea.innerHTML = `<div class="${type==='err'?'error':'ok'}">${msg}</div>`;
+    }
+
+    showError(msg){ this.showStatus(msg,'err'); }
+    showSuccess(msg){ this.showStatus(msg,'ok'); }
+
+    async onCreateClick(){
+      this.showStatus('Preparing...', 'ok');
+      // Basic validation: provider may be empty meaning local parse
+      const provider = this.provider.value;
+      const key = this.apiKey.value.trim();
+      // allow local heuristic parsing if provider empty
+      if(provider && !key){
+        this.showError('Enter API key for selected provider.');
+        return;
+      }
+      // read template must be loaded
+      if(!this.templateZip){
+        this.showError('Upload a template first.');
+        return;
+      }
+
+      // generate slides plan
+      let plan;
+      try {
+        if(provider){
+          plan = await this.callLLMPlan(provider, key, this.srcText.value, this.guidance.value);
+        } else {
+          plan = this.localPlanFromText(this.srcText.value);
+        }
+      } catch(err){
+        this.showError('Failed to build slide plan: '+err.message);
+        return;
+      }
+
+      this.showStatus('Compiling slides...', 'ok');
+      try {
+        const deck = await this.composePptx(plan);
+        await this.triggerDownload(deck);
+        this.showSuccess('Download ready — your deck was created.');
+      } catch(err){
+        this.showError('Failed to assemble PPTX: '+err.message);
+      }
+    }
+
+    localPlanFromText(text){
+      // simple markdown-first splitter: headings -> slides; paragraphs -> bullets
+      const lines = text.split(/\r?\n/);
+      const slides = [];
+      let current = {type:'content', title:'', content:[]};
+      for(const raw of lines){
+        const line = raw.trim();
+        if(!line) continue;
+        if(line.startsWith('# ')){
+          if(current.title || current.content.length) slides.push(current);
+          current = {type:'title', title: line.replace(/^#+\s*/,'').slice(0,120), content:[]};
+        } else if(line.startsWith('## ')){
+          if(current.title || current.content.length) slides.push(current);
+          current = {type:'content', title: line.replace(/^#+\s*/,'').slice(0,80), content:[]};
+        } else if(/^[-*•]\s+/.test(line)){
+          current.content.push(line.replace(/^[-*•]\s+/,'').slice(0,160));
+        } else {
+          // split long paragraph into bullets of ~100 chars
+          if(current.content.length < 6) current.content.push(line.slice(0,160));
+        }
+      }
+      if(current.title || current.content.length) slides.push(current);
+      // ensure first slide is title if not present
+      if(slides.length && slides[0].type !== 'title'){
+        slides.unshift({type:'title', title:'Generated Presentation', content:[]});
+      }
+      return slides.slice(0,25);
+    }
+
+    async callLLMPlan(provider, apiKey, text, guidance){
+      // Very small wrapper supporting OpenAI/Anthropic/Gemini shapes.
+      // This demo expects the provider string and the apiKey; real production
+      // should route via a server to hide keys — here keys run in-browser by user.
+      const prompt = this.buildPrompt(text, guidance);
+      if(provider === 'openai'){
+        const res = await fetch('https://api.openai.com/v1/chat/completions',{
+          method:'POST',
+          headers:{'Authorization':'Bearer '+apiKey,'Content-Type':'application/json'},
+          body: JSON.stringify({model:'gpt-4o-mini', messages:[{role:'user', content:prompt}], temperature:0.2})
+        });
+        if(!res.ok) throw new Error('OpenAI error: '+res.status);
+        const data = await res.json();
+        const txt = data.choices?.[0]?.message?.content || data.choices?.[0]?.text;
+        return this.parsePlanFromLLM(txt);
+      } else if(provider === 'anthropic'){
+        const res = await fetch('https://api.anthropic.com/v1/messages',{
+          method:'POST',
+          headers:{'x-api-key':apiKey,'Content-Type':'application/json','anthropic-version':'2023-06-01'},
+          body: JSON.stringify({model:'claude-3', messages:[{role:'user', content:prompt}], max_tokens:1500})
+        });
+        if(!res.ok) throw new Error('Anthropic error: '+res.status);
+        const data = await res.json();
+        const txt = data?.content?.[0]?.text || JSON.stringify(data);
+        return this.parsePlanFromLLM(txt);
+      } else if(provider === 'gemini'){
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5:generateContent?key=${apiKey}`;
+        const res = await fetch(url,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+        });
+        if(!res.ok) throw new Error('Gemini error: '+res.status);
+        const d = await res.json();
+        const txt = d?.candidates?.[0]?.content?.parts?.[0]?.text;
+        return this.parsePlanFromLLM(txt);
+      } else {
+        throw new Error('Provider not supported in demo');
+      }
+    }
+
+    buildPrompt(text, guidance){
+      const hint = guidance ? `Guidance: ${guidance}\n\n` : '';
+      return `${hint}Convert the text below into a JSON array of slides. Each slide should be an object with "type" ("title" or "content"), "title", and "content" (array of bullets). Limit to 20 slides. Text:\n\n${text}\n\nRespond with JSON only.`;
+    }
+
+    parsePlanFromLLM(responseText){
+      // extract JSON blob
+      const j = responseText.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+      if(!j) throw new Error('No JSON found in model output');
+      const parsed = JSON.parse(j[0]);
+      // Accept either {slides: [...] } or an array itself
+      if(Array.isArray(parsed)) return parsed.slice(0,25);
+      if(parsed.slides && Array.isArray(parsed.slides)) return parsed.slides.slice(0,25);
+      throw new Error('Unexpected JSON format from model');
+    }
+
+    async composePptx(slides){
+      const newZip = new JSZip();
+      // copy minimal required structure from original template
+      const core = ['[Content_Types].xml','_rels/.rels','ppt/_rels/presentation.xml.rels','ppt/theme/theme1.xml','ppt/slideMasters/slideMaster1.xml'];
+      for(const f of core){
+        if(this.templateZip.files[f]) {
+          const txt = await this.templateZip.files[f].async('string');
+          newZip.file(f, txt);
+        }
+      }
+      // copy layouts and master files
+      const candidates = this.templateFiles.filter(p=>p.startsWith('ppt/slideLayouts/') || p.startsWith('ppt/slideMasters/') || p.startsWith('ppt/media/') || p.startsWith('ppt/theme/'));
+      for(const p of candidates){
+        if(this.templateZip.files[p]){
+          const isMedia = p.startsWith('ppt/media/');
+          if(isMedia){
+            const b = await this.templateZip.files[p].async('base64');
+            newZip.file(p, b, {base64:true});
+          } else {
+            newZip.file(p, await this.templateZip.files[p].async('string'));
+          }
+        }
+      }
+
+      // create slide files
+      const rels = [];
+      let sIdx = 1;
+      for(const s of slides){
+        const xml = this.buildSlideXml(s, sIdx);
+        newZip.file(`ppt/slides/slide${sIdx}.xml`, xml);
+        rels.push(`<Relationship Id="rId${sIdx+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${sIdx}.xml"/>`);
+        sIdx++;
+      }
+
+      // create presentation XML and rels using templates that refer to master1
+      const presXml = this.createPresentationXml(rels);
+      newZip.file('ppt/presentation.xml', presXml);
+      const presRels = this.createPresentationRels(rels.length);
+      newZip.file('ppt/_rels/presentation.xml.rels', presRels);
+
+      // ensure content types exists by copying from template if present
+      if(this.templateZip.files['[Content_Types].xml']){
+        newZip.file('[Content_Types].xml', await this.templateZip.files['[Content_Types].xml'].async('string'));
+      } else {
+        newZip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?>');
+      }
+
+      return newZip;
+    }
+
+    buildSlideXml(slide, idx){
+      const title = this.escapeXml(slide.title||'');
+      const bullets = (slide.content||[]).slice(0,8).map(b=>`<a:p><a:r><a:t>${this.escapeXml(b)}</a:t></a:r></a:p>`).join('');
+      const contentBlock = bullets ? `
+        <p:sp>
+          <p:nvSpPr>
+            <p:cNvPr id="3" name="Content Placeholder"/>
+            <p:cNvSpPr/>
+            <p:nvPr><p:ph idx="1"/></p:nvPr>
+          </p:nvSpPr>
+          <p:spPr/>
+          <p:txBody>
+            <a:bodyPr/>
+            <a:lstStyle/>
+            ${bullets}
+          </p:txBody>
+        </p:sp>` : '';
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+     xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+     xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld>
+    <p:spTree>
+      <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+      <p:sp>
+        <p:nvSpPr>
+          <p:cNvPr id="2" name="Title 1"/>
+          <p:cNvSpPr/>
+          <p:nvPr><p:ph type="ctrTitle"/></p:nvPr>
+        </p:nvSpPr>
+        <p:spPr/>
+        <p:txBody>
+          <a:bodyPr/>
+          <a:lstStyle/>
+          <a:p><a:r><a:t>${title}</a:t></a:r></a:p>
+        </p:txBody>
+      </p:sp>
+      ${contentBlock}
+    </p:spTree>
+  </p:cSld>
+  <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:sld>`;
+    }
+
+    createPresentationXml(relsContent){
+      const slideEntries = relsContent.join('\n');
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:sldMasterIdLst><p:sldMasterId id="256" r:id="rId1"/></p:sldMasterIdLst>
+  <p:sldIdLst>
+    ${slideEntries}
+  </p:sldIdLst>
+  <p:sldSz cx="9144000" cy="6858000" type="screen4x3"/>
+</p:presentation>`;
+    }
+
+    createPresentationRels(count){
+      // Relationship id allocation: rId1 reserved for master, then slides, then theme
+      let items = [`<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>`];
+      for(let i=0;i<count;i++){
+        items.push(`<Relationship Id="rId${i+2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${i+1}.xml"/>`);
+      }
+      items.push(`<Relationship Id="rId${count+2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>`);
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${items.join('\n')}
+</Relationships>`;
+    }
+
+    async triggerDownload(zip){
+      const blob = await zip.generateAsync({type:'blob'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'slidesmith-output-' + Date.now() + '.pptx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    escapeXml(s){
+      return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    loadSample(kind){
+      const pitch = `# Revolutionary AI Platform
+
+## Executive Summary
+Our AI platform transforms how businesses operate...
+
+## Market Opportunity
+The global AI market is projected to reach $1.8 trillion by 2030.
+
+## Our Solution
+- Advanced ML
+- Real-time optimization
+- 99.9% uptime`;
+
+      const product = `# Product Launch
+
+## Overview
+SmartHome Hub: next-gen home automation.
+
+## Features
+- Voice control
+- Energy savings
+- Security monitoring`;
+
+      this.srcText.value = (kind==='pitch')?pitch:product;
+    }
+  }
+
+  // boot
+  document.addEventListener('DOMContentLoaded', ()=>{ window.SlideSmith = new SlideBuilderApp(); });
+
+})();
+</script>
+</body>
+</html>
 
