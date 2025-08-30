@@ -2,7 +2,7 @@
 
 Transform any text into a professionally styled PowerPoint presentation that matches your chosen template's look and feel.
 
-## ðŸš€ Features
+##  Features
 
 - **Smart Text Analysis**: AI-powered content breakdown into logical slides
 - **Style Matching**: Inherits colors, fonts, and layouts from your template
@@ -10,18 +10,18 @@ Transform any text into a professionally styled PowerPoint presentation that mat
 - **Template Preservation**: Reuses images and maintains visual consistency
 - **Browser-Based**: No installation required - runs entirely in your browser
 
-## ðŸŒŸ Demo
+## Demo
 
 **Live Demo**: [Try it here](https://site-production-6e98.up.railway.app/index.html)
 
-## ðŸ“‹ Requirements
+##  Requirements
 
 - Modern web browser (Chrome, Firefox, Safari, Edge)
 - LLM API key (OpenAI, Anthropic, or Google Gemini)
 - PowerPoint template file (.pptx or .potx)
 - Optional: Google Search API credentials for enhanced functionality
 
-## ðŸš€ Quick Start
+##  Quick Start
 
 ### Method 1: GitHub Pages (Recommended)
 1. Visit the [Try it here](https://site-production-6e98.up.railway.app/index.html)
